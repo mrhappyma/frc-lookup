@@ -1,4 +1,4 @@
-package com.example.frc_lookup
+package me.userexe.frc_lookup
 
 import io.flutter.embedding.android.FlutterActivity
 

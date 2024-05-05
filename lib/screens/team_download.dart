@@ -36,7 +36,7 @@ class _DownloadTeamsScreenState extends State<DownloadTeamsScreen> {
         "flbmZznlhOGjL2YNKK18b84Amc7TkvnzONJ7rgYUj7QBiIrcswHgauoxNnKUZAqe";
     const baseUrl = "https://www.thebluealliance.com/api/v3";
 
-    for (int i = 1; i < 20; i += 1) {
+    for (int i = 0; i < 20; i += 1) {
       setState(() {
         _downloadStatus =
             "downloading teams ${(((i - 1) / 2) * 1000).toInt()} to ${((i / 2) * 1000).toInt()}";
@@ -65,6 +65,7 @@ class _DownloadTeamsScreenState extends State<DownloadTeamsScreen> {
     }
 
     Settings settings = Provider.of<Settings>(context, listen: false);
+    await settings.setSetupDone(true);
     await settings.loadPreferences();
     if (settings.downloadPhotos != PhotoDownloadSetting.none) {
       setState(() {

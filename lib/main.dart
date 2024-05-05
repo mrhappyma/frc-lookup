@@ -52,10 +52,21 @@ class _MainViewState extends State<MainView> {
 
     super.initState();
     _initImageDirectory();
+    _setup();
   }
 
   _initImageDirectory() async {
     directory = await getApplicationSupportDirectory();
+  }
+
+  _setup() async {
+    await settings.loadPreferences();
+    if (!settings.setupDone) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const DownloadTeamsScreen()),
+      );
+    }
   }
 
   @override
