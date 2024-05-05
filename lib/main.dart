@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:frc_lookup/util/settings.dart';
 import 'package:frc_lookup/util/team.dart';
@@ -22,8 +23,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: MainView(),
+    return DynamicColorBuilder(
+        builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+      return MaterialApp(
+        home: const MainView(),
+        theme: lightDynamic != null
+            ? ThemeData.from(colorScheme: lightDynamic)
+            : ThemeData.light(),
+        darkTheme: darkDynamic != null
+            ? ThemeData.from(colorScheme: darkDynamic)
+            : ThemeData.dark(),
+      );
+    }
     );
   }
 }
