@@ -16,57 +16,45 @@ class DownloadTeamsScreen extends StatefulWidget {
 }
 
 class _DownloadTeamsScreenState extends State<DownloadTeamsScreen> {
-  String _downloadStatus = 'Downloading teams...';
+  String _downloadStatus = 'downloading data...';
   double? _downloadProgress;
 
   @override
   void initState() {
     super.initState();
-    downloadTeams();
+    downloadData();
   }
 
-  Future<void> downloadTeams() async {
-    setState(() {
-      _downloadStatus = "downloading teams";
-    });
+  Future<void> downloadData() async {
     TeamProvider teamProvider = TeamProvider();
     await teamProvider.open('frclu.db');
 
-    const token =
+    const tbaToken =
         "flbmZznlhOGjL2YNKK18b84Amc7TkvnzONJ7rgYUj7QBiIrcswHgauoxNnKUZAqe";
-    const baseUrl = "https://www.thebluealliance.com/api/v3";
+    const tbaBaseUrl = "https://www.thebluealliance.com/api/v3";
+    const backendBaseUrl = "https://frc-lookup-api.userexe.me";
 
-    for (int i = 0; i < 20; i += 1) {
+    setState(() {
+      _downloadStatus = "downloading teams";
+    });
+    var teamsResponse = await http.get(Uri.parse('$backendBaseUrl/teams'));
+    if (teamsResponse.statusCode != 200) {
       setState(() {
+        _downloadProgress = 0;
         _downloadStatus =
-            "downloading teams ${(((i - 1) / 2) * 1000).toInt()} to ${((i / 2) * 1000).toInt()}";
+            "Failed to download teams - ${teamsResponse.statusCode}";
       });
-      var response = await http.get(Uri.parse("$baseUrl/teams/$i"),
-          headers: {"X-TBA-Auth-Key": token});
-      if (response.statusCode == 200) {
-        var body = jsonDecode(response.body);
-        List<Map<String, dynamic>> teamsData =
-            List<Map<String, dynamic>>.from(body);
-        List<Team> teams = teamsData
-            .map((e) => Team(e["team_number"], e["nickname"],
-                "${e['city']}, ${e['state_prov']}", e["rookie_year"]))
-            .toList();
-        await teamProvider.insertMany(teams);
-        setState(() {
-          _downloadProgress = i / 20;
-        });
-      } else {
-        setState(() {
-          _downloadProgress = 0;
-          _downloadStatus = "Failed to download teams - ${response.statusCode}";
-        });
-        return;
-      }
+      return;
     }
+    var teamsBody = (jsonDecode(teamsResponse.body) as List)
+        .map((item) => Team.fromJson(item))
+        .toList();
+    await teamProvider.insertMany(teamsBody);
 
     Settings settings = Provider.of<Settings>(context, listen: false);
     await settings.setSetupDone(true);
     await settings.loadPreferences();
+
     if (settings.downloadPhotos != PhotoDownloadSetting.none) {
       setState(() {
         _downloadProgress = null;
@@ -78,8 +66,8 @@ class _DownloadTeamsScreenState extends State<DownloadTeamsScreen> {
         List<int> allCompTeams = [];
         for (String comp in settings.photoComps) {
           var compResponse = await http.get(
-              Uri.parse('$baseUrl/event/$comp/teams/simple'),
-              headers: {"X-TBA-Auth-Key": token});
+              Uri.parse('$tbaBaseUrl/event/$comp/teams/simple'),
+              headers: {"X-TBA-Auth-Key": tbaToken});
           if (compResponse.statusCode == 200) {
             var compBody = jsonDecode(compResponse.body);
             List<Map<String, dynamic>> compTeamsData =
@@ -102,55 +90,56 @@ class _DownloadTeamsScreenState extends State<DownloadTeamsScreen> {
       }
 
       Directory directory = await getApplicationSupportDirectory();
+      var photoUrlsResponse = await http
+          .get(Uri.parse('$backendBaseUrl/photos/${settings.photoYear}'));
+      if (photoUrlsResponse.statusCode != 200) {
+        setState(() {
+          _downloadProgress = 0;
+          _downloadStatus =
+              "Failed to download photo urls - ${photoUrlsResponse.statusCode}";
+        });
+        return;
+      }
+      var photoUrlsBody = (jsonDecode(photoUrlsResponse.body) as List)
+          .map((item) => TeamPhotoUrl.fromJson(item))
+          .toList();
+
       Future<void> downloadTeamPhoto(Team team, Directory directory) async {
         if (await File(
-                    '${directory.path}/frc${team.number}-${settings.photoYear}.png')
+                    '${directory.path}/frc${team.number}-${settings.photoYear}.jpg')
                 .exists() ||
             await File(
-                    '${directory.path}/frc${team.number}-${settings.photoYear}.jpg')
+                    '${directory.path}/frc${team.number}-${settings.photoYear}.png')
                 .exists()) {
           return;
         }
-        var mediaResponse = await http.get(
-            Uri.parse(
-                '$baseUrl/team/frc${team.number}/media/${settings.photoYear}'),
-            headers: {"X-TBA-Auth-Key": token});
-        if (mediaResponse.statusCode == 200) {
-          var mediaBody = jsonDecode(mediaResponse.body);
-          List<Map<String, dynamic>> mediaData =
-              List<Map<String, dynamic>>.from(mediaBody);
-          if (mediaData.isEmpty) {
-            return;
-          }
-          String preferredPhotoUrl;
-          try {
-            preferredPhotoUrl = mediaData.firstWhere((element) =>
-                element["preferred"] == true &&
-                element["direct_url"]
-                    .toString()
-                    .startsWith('http'))["direct_url"];
-          } catch (e) {
-            return;
-          }
-          String path =
-              '${directory.path}/frc${team.number}-${settings.photoYear}.${preferredPhotoUrl.split('.').last}';
 
-          if (await File(path).exists()) {
-            return;
-          }
-          var photoResponse = await http.get(Uri.parse(preferredPhotoUrl));
-          if (photoResponse.statusCode == 200) {
-            File file = File(path);
-            await file.writeAsBytes(photoResponse.bodyBytes);
-          } else {
-            setState(() {
-              _downloadProgress = 0;
-              _downloadStatus =
-                  "Failed to download photo for team ${team.number} - ${photoResponse.statusCode}";
-            });
-            throw Exception(
-                "Failed to download photo for team ${team.number} - ${photoResponse.statusCode}");
-          }
+        late String preferredPhotoUrl;
+        try {
+          preferredPhotoUrl = photoUrlsBody
+              .firstWhere((element) => element.teamNumber == team.number)
+              .url;
+        } catch (e) {
+          return;
+        }
+        String path =
+            '${directory.path}/frc${team.number}-${settings.photoYear}.${preferredPhotoUrl.split('.').last}';
+
+        if (await File(path).exists()) {
+          return;
+        }
+        var photoResponse = await http.get(Uri.parse(preferredPhotoUrl));
+        if (photoResponse.statusCode == 200) {
+          File file = File(path);
+          await file.writeAsBytes(photoResponse.bodyBytes);
+        } else {
+          setState(() {
+            _downloadProgress = 0;
+            _downloadStatus =
+                "Failed to download photo for team ${team.number} - ${photoResponse.statusCode}";
+          });
+          throw Exception(
+              "Failed to download photo for team ${team.number} - ${photoResponse.statusCode}");
         }
       }
 
@@ -179,7 +168,7 @@ class _DownloadTeamsScreenState extends State<DownloadTeamsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          title: const Text('Download Teams'),
+          title: const Text('Download Data'),
         ),
         body: Center(
           child: Column(
@@ -193,5 +182,19 @@ class _DownloadTeamsScreenState extends State<DownloadTeamsScreen> {
             ],
           ),
         ));
+  }
+}
+
+class TeamPhotoUrl {
+  final int teamNumber;
+  final String url;
+
+  TeamPhotoUrl(this.teamNumber, this.url);
+
+  factory TeamPhotoUrl.fromJson(Map<String, dynamic> json) {
+    return TeamPhotoUrl(
+      json['teamNumber'],
+      json['url'],
+    );
   }
 }

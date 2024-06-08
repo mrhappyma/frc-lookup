@@ -29,6 +29,11 @@ class Team {
         nickname = map[columnNickname] as String,
         city = map[columnCity] as String?,
         rookieYear = map[columnRookieYear] as int?;
+
+  factory Team.fromJson(item) {
+    return Team(
+        item['number'], item['nickname'], item['city'], item['rookieYear']);
+  }
 }
 
 class TeamProvider {
