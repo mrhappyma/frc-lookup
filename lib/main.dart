@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
+import 'package:frc_lookup/screens/flash.dart';
 import 'package:frc_lookup/util/settings.dart';
 import 'package:frc_lookup/util/team.dart';
 import 'package:frc_lookup/screens/settings.dart';
@@ -76,6 +77,11 @@ class _MainViewState extends State<MainView> {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const DownloadTeamsScreen()),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const FlashScreen()),
       );
     }
   }
